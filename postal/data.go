@@ -12,10 +12,12 @@ import (
 )
 
 const (
-	// Default data URL - libpostal data hosted on S3
-	DefaultDataURL    = "https://libpostal-data.s3.amazonaws.com"
-	ParserDataFile    = "parser.tar.gz"
-	LanguageDataFile  = "language_classifier.tar.gz"
+	// Default data URL - libpostal data hosted on GitHub releases
+	DefaultDataURL     = "https://github.com/openvenues/libpostal/releases/download"
+	DataVersion        = "v1.0.0"
+	BaseDataFile       = "libpostal_data.tar.gz"
+	ParserDataFile     = "parser.tar.gz"
+	LanguageDataFile   = "language_classifier.tar.gz"
 
 	// Default data directory
 	DefaultDataDir = "libpostal_data"
@@ -74,54 +76,71 @@ func (dm *DataManager) Setup() error {
 		return nil
 	}
 
-	// For now, we'll work without downloading actual data
-	// In production, you would uncomment this to download real data files
-	/*
 	fmt.Println("Downloading libpostal data files (this may take a while)...")
+	fmt.Println("Note: Data files are large (~1-2GB total)")
+
+	// Download base data
+	if err := dm.DownloadAndExtract(BaseDataFile); err != nil {
+		fmt.Printf("Warning: Failed to download base data: %v\n", err)
+		fmt.Println("Continuing with built-in rules only...")
+	}
 
 	// Download parser data
 	if err := dm.DownloadAndExtract(ParserDataFile); err != nil {
-		return fmt.Errorf("failed to download parser data: %w", err)
+		fmt.Printf("Warning: Failed to download parser data: %v\n", err)
+		fmt.Println("Continuing with built-in rules only...")
 	}
 
 	// Download language classifier data
 	if err := dm.DownloadAndExtract(LanguageDataFile); err != nil {
-		return fmt.Errorf("failed to download language classifier data: %w", err)
+		fmt.Printf("Warning: Failed to download language classifier data: %v\n", err)
+		fmt.Println("Continuing with built-in rules only...")
 	}
 
 	fmt.Println("Data download complete!")
-	*/
-
-	// For development/testing, we work without actual data files
-	fmt.Println("Note: Running without downloaded data files. Using built-in rules only.")
-	fmt.Println("For full functionality, download data from: https://github.com/openvenues/libpostal")
 
 	return nil
 }
 
 // DataExists checks if required data files exist
 func (dm *DataManager) DataExists() bool {
-	// Check for key files that should exist after extraction
-	parserPath := filepath.Join(dm.DataDir, "parser")
+	// Check for key directories that should exist after extraction
+	basePaths := []string{
+		filepath.Join(dm.DataDir, "address_expansions"),
+		filepath.Join(dm.DataDir, "numex"),
+		filepath.Join(dm.DataDir, "transliteration"),
+	}
+
+	parserPath := filepath.Join(dm.DataDir, "address_parser")
 	languagePath := filepath.Join(dm.DataDir, "language_classifier")
 
-	parserExists := false
-	languageExists := false
+	// Check base data
+	baseExists := true
+	for _, path := range basePaths {
+		if info, err := os.Stat(path); err != nil || !info.IsDir() {
+			baseExists = false
+			break
+		}
+	}
 
+	// Check parser
+	parserExists := false
 	if info, err := os.Stat(parserPath); err == nil && info.IsDir() {
 		parserExists = true
 	}
 
+	// Check language classifier
+	languageExists := false
 	if info, err := os.Stat(languagePath); err == nil && info.IsDir() {
 		languageExists = true
 	}
 
-	return parserExists && languageExists
+	return baseExists && parserExists && languageExists
 }
 
 // DownloadAndExtract downloads and extracts a data file
 func (dm *DataManager) DownloadAndExtract(filename string) error {
-	url := fmt.Sprintf("%s/%s", dm.BaseURL, filename)
+	url := fmt.Sprintf("%s/%s/%s", dm.BaseURL, DataVersion, filename)
 	tempFile := filepath.Join(dm.DataDir, filename)
 
 	// Download the file
