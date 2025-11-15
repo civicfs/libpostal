@@ -82,3 +82,14 @@ docs/_build/
 
 # PyBuilder
 target/
+
+# Go build artifacts
+*.test
+*.prof
+/libpostal
+/cmd/libpostal/libpostal
+vendor/
+libpostal_data/
+
+# Go coverage
+*.coverprofile
